@@ -141,6 +141,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try { sendResponse({ ok: true }); } catch (_) {}
     return false;
   }
+  if (message.type === 'READ_STORAGE') {
+    const allowed = [MeetRecorderConfig.licenseStorageKey, MeetRecorderConfig.settingsStorageKey];
+    const keys = [].concat(message.keys).filter(key => allowed.includes(key));
+    chrome.storage.local.get(keys)
+      .then(values => sendResponse({ ok: true, values }))
+      .catch(error => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
   (async () => {
     if (message.type === 'PREPARE') {
       await ensureOffscreenDocument();

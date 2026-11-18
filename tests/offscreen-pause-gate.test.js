@@ -15,7 +15,7 @@ function loadOffscreen({ licensed }) {
   global.MeetRecorderWav = require('../lib/wav.js');
   global.MeetRecorderLimits = require('../lib/limits.js');
   // Signature verification is covered in license.test.js; this test is only about the gate.
-  global.MeetRecorderLicense = { current: async () => ({ pro: licensed }) };
+  global.MeetRecorderLicense = { createLicenseChecker: () => ({ current: async () => ({ pro: licensed }) }) };
   global.chrome = { runtime: { sendMessage: async () => ({ ok: true }), onMessage: { addListener: () => {} } } };
 
   delete require.cache[require.resolve('../offscreen.js')];
@@ -41,7 +41,7 @@ test('a fake pro flag with no real key does not unlock the gate', async () => {
   // current() must come from a re-verified key, never a stored boolean; this stands in for that
   // contract by asserting the gate only opens when current() itself reports pro:true.
   const offscreen = loadOffscreen({ licensed: false });
-  global.MeetRecorderLicense = { current: async () => ({ pro: false, spoofed: true }) };
+  global.MeetRecorderLicense = { createLicenseChecker: () => ({ current: async () => ({ pro: false, spoofed: true }) }) };
   await assert.rejects(() => offscreen.pauseRecording(), /Recorder Pro/);
 });
 
@@ -61,4 +61,22 @@ test('muting the recording mic is refused without a license', async () => {
 test('switching the recording mic is refused without a license', async () => {
   const offscreen = loadOffscreen({ licensed: false });
   await assert.rejects(() => offscreen.switchMicrophone('device-2'), /Recorder Pro/);
+});
+
+test('the license is read through the service worker, since offscreen documents have no chrome.storage', async () => {
+  const offscreen = loadOffscreen({ licensed: false });
+  delete require.cache[require.resolve('../lib/license.js')];
+  global.MeetRecorderLicense = require('../lib/license.js');
+  const requests = [];
+  global.chrome = {
+    runtime: {
+      sendMessage: async message => {
+        requests.push(message);
+        return message.type === 'READ_STORAGE' ? { ok: true, values: {} } : { ok: true };
+      },
+      onMessage: { addListener: () => {} },
+    },
+  };
+  await assert.rejects(() => offscreen.pauseRecording(), /Recorder Pro/);
+  assert.ok(requests.some(message => message.type === 'READ_STORAGE' && [].concat(message.keys).includes('license')));
 });

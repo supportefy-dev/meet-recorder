@@ -181,12 +181,26 @@ function freeLimitWarning(remainingMs) {
   return `Free recordings stop at ${MeetRecorderConfig.freeLimits.maxMinutes} minutes, ${remaining} minute${remaining === 1 ? '' : 's'} left. Pro removes the limit.`;
 }
 
+const backgroundStorage = {
+  async get(keys) {
+    const result = await chrome.runtime.sendMessage({ type: 'READ_STORAGE', keys });
+    if (!result?.ok) throw new Error(result?.error || 'Could not read extension settings.');
+    return result.values || {};
+  },
+};
+
+let licenseChecker = null;
+function license() {
+  licenseChecker ||= MeetRecorderLicense.createLicenseChecker(MeetRecorderConfig, { localStorage: backgroundStorage });
+  return licenseChecker;
+}
+
 // Settings and license are re-read and re-verified here, not trusted from the START_RECORDING
 // message: a compromised or stale popup/service-worker message must never unlock a Pro feature.
 async function startRecording({ streamId, mode, title }) {
   if (state.recorder) throw new Error('A recording is already running.');
-  const rawSettings = await MeetRecorderSettings.load();
-  const licenseStatus = await MeetRecorderLicense.current();
+  const rawSettings = await MeetRecorderSettings.load(backgroundStorage);
+  const licenseStatus = await license().current();
   if (!MeetRecorderLimits.allowedMode(mode, licenseStatus.pro)) throw new Error('Video recording is a Pro feature.');
   state.mode = mode;
   state.licensed = Boolean(licenseStatus.pro);
@@ -286,7 +300,7 @@ async function stopRecording(finalMessage) {
 }
 
 async function pauseRecording() {
-  const licenseStatus = await MeetRecorderLicense.current();
+  const licenseStatus = await license().current();
   if (!licenseStatus.pro) throw new Error('Pause and resume need Recorder Pro.');
   if (!state.recorder || state.recorder.state === 'inactive' || state.paused) return;
   state.paused = true;
@@ -299,7 +313,7 @@ async function pauseRecording() {
 }
 
 async function resumeRecording() {
-  const licenseStatus = await MeetRecorderLicense.current();
+  const licenseStatus = await license().current();
   if (!licenseStatus.pro) throw new Error('Pause and resume need Recorder Pro.');
   if (!state.recorder || !state.paused) return;
   state.pausedAccumMs += Date.now() - state.pausedSince;
@@ -357,7 +371,7 @@ async function enableMicrophone(deviceId) {
 }
 
 async function switchMicrophone(deviceId) {
-  const licenseStatus = await MeetRecorderLicense.current();
+  const licenseStatus = await license().current();
   if (!MeetRecorderLimits.canControlMic(licenseStatus.pro)) throw new Error('Switching microphones needs Recorder Pro.');
   if (!state.micStream) throw new Error('Enable the recording microphone first.');
   const wasMuted = state.micMuted;
@@ -373,7 +387,7 @@ async function switchMicrophone(deviceId) {
 }
 
 async function setMicrophoneMuted(muted) {
-  const licenseStatus = await MeetRecorderLicense.current();
+  const licenseStatus = await license().current();
   if (!MeetRecorderLimits.canControlMic(licenseStatus.pro)) throw new Error('Muting the recording mic needs Recorder Pro.');
   if (!state.micStream) throw new Error('Enable the recording microphone first.');
   state.micMuted = muted;
