@@ -1,7 +1,7 @@
 {
   "name": "meet-recorder",
   "private": true,
-  "version": "4.5.0",
+  "version": "4.5.1",
   "description": "Record Google Meet tab audio, a manually controlled microphone, or video locally.",
   "scripts": {
     "test": "node --test"

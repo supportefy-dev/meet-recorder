@@ -2,7 +2,14 @@
 
 All notable changes to Recorder for Google Meet™ are listed here. Versions follow the extension's `manifest.json`. Download any version from [Releases](https://github.com/supportefy-dev/meet-recorder/releases).
 
-## [4.5.0] - Unreleased
+## [4.5.1] - 2026-11-18
+
+### Fixed
+
+- Recordings failed to start with "Extension storage is not available." The recorder engine now reads your settings and Pro license through the extension's background worker, so saved recording settings also take effect again.
+- The Settings page can scroll down to the Recorder Pro card again.
+
+## [4.5.0] - 2026-09-30
 
 ### Added
 
